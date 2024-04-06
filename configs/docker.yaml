@@ -1,0 +1,11 @@
+server:
+  port: "8080"
+
+postgres:
+  host: "db"
+  port: "5432"
+  dbname: "postgres"
+  user: "postgres"
+  password: "postgres"
+
+redis:
