@@ -4,8 +4,6 @@ server:
 postgres:
   host: "db"
   port: "5432"
-  dbname: "postgres"
+  database: "postgres"
   user: "postgres"
   password: "postgres"
-
-redis:
