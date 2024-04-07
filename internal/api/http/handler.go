@@ -1,28 +1,33 @@
 package http
 
 import (
+	"context"
 	"log"
 	"net/http"
 
-	"banner-service/internal/actions"
+	"banner-service/internal/model"
 )
 
+type Service interface {
+	GetUserBannerAction(context.Context, model.GetUserBannerParams) (model.UserBanner, error)
+	GetBannerWithFiltersAction(context.Context, model.GetBannerWithFiltersParams) (model.UserBanner, error)
+}
+
 type Handler struct {
-	service *actions.BannerService
+	serv Service
 }
 
-func NewHandler(service *actions.BannerService) *Handler {
-	return &Handler{service: service}
+func NewHandler(s Service) *Handler {
+	return &Handler{serv: s}
 }
 
-// useLastRevision убрал из routing
 func (h *Handler) getUserBanner(w http.ResponseWriter, r *http.Request) error {
 	tagID := r.URL.Query().Get("tag_id")
 	featureID := r.URL.Query().Get("feature_id")
 	useLastRevision := r.URL.Query().Get("use_last_revision")
 	log.Printf("tagID: %s; featureID: %s; useLastRevision: %s\n", tagID, featureID, useLastRevision)
 
-	result, err := h.service.GetUserBannerAction(r.Context(), actions.GetUserBannerParams{
+	result, err := h.serv.GetUserBannerAction(r.Context(), model.GetUserBannerParams{
 		TagID:           tagID,
 		FeatureID:       featureID,
 		UseLastRevision: useLastRevision == "true",
@@ -39,7 +44,7 @@ func (h *Handler) getBannersWithFilter(w http.ResponseWriter, r *http.Request) e
 	limit := r.URL.Query().Get("limit")
 	offset := r.URL.Query().Get("offset")
 
-	result, err := h.service.GetBannerWithFiltersAction(r.Context(), actions.GetBannersWithFiltersParams{
+	result, err := h.serv.GetBannerWithFiltersAction(r.Context(), model.GetBannerWithFiltersParams{
 		TagID:     tagID,
 		FeatureID: featureID,
 		Limit:     limit,

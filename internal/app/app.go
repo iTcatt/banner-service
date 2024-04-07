@@ -9,11 +9,10 @@ import (
 	"os/signal"
 	"syscall"
 
-	"banner-service/internal/actions"
+	"banner-service/internal/adapter/postgres"
 	api "banner-service/internal/api/http"
 	"banner-service/internal/config"
-	"banner-service/internal/storage"
-	"banner-service/internal/storage/postgres"
+	"banner-service/internal/service"
 )
 
 func Start() error {
@@ -27,8 +26,8 @@ func Start() error {
 	if err != nil {
 		return err
 	}
-	service := actions.NewBannerService(db)
-	handler := api.NewHandler(service)
+	serv := service.NewBannerService(db)
+	handler := api.NewHandler(serv)
 
 	httpServer := initHTTPServer(cfg.Server, handler)
 
@@ -54,8 +53,8 @@ func Start() error {
 	return nil
 }
 
-func initStorage(cfg config.PostgresConfig) (storage.BannerStorage, error) {
-	log.Println("init storage")
+func initStorage(cfg config.PostgresConfig) (service.BannerStorage, error) {
+	log.Println("init postgres storage")
 	access := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
 		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database)
 	return postgres.NewStorage(access)

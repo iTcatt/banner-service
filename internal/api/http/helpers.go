@@ -3,11 +3,10 @@ package http
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"log"
 	"net/http"
 
-	"banner-service/internal/storage"
+	"banner-service/internal/adapter"
 )
 
 type wrappedHandler func(w http.ResponseWriter, r *http.Request) error
@@ -19,11 +18,13 @@ func errorsHandler(handler wrappedHandler) http.HandlerFunc {
 		switch {
 		case err == nil:
 			w.WriteHeader(http.StatusOK)
-		case errors.Is(err, storage.ErrNotFound):
+		case errors.Is(err, adapter.ErrNotFound):
 			w.WriteHeader(http.StatusNotFound)
 		default:
-			msg := fmt.Sprintf(`{"error":"%s"}`, err.Error())
-			_ = sendJSONResponse(w, msg, http.StatusInternalServerError)
+			resp := struct {
+				Error string `json:"error"`
+			}{err.Error()}
+			_ = sendJSONResponse(w, resp, http.StatusInternalServerError)
 		}
 	}
 }
