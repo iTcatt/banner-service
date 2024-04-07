@@ -1,9 +1,11 @@
 package postgres
 
 import (
+	"banner-service/internal/config"
 	"context"
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -12,21 +14,38 @@ type Storage struct {
 	conn *pgx.Conn
 }
 
-func NewStorage(dbPath string) (*Storage, error) {
-	conn, err := pgx.Connect(context.Background(), dbPath)
-	if err != nil {
-		return nil, fmt.Errorf("unable to connect to database: %w", err)
-	}
+func NewStorage(cfg config.PostgresConfig) (*Storage, error) {
+	var (
+		conn *pgx.Conn
+		err  error
+	)
+	dbPath := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
+		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database)
 
-	err = conn.Ping(context.Background())
-	if err != nil {
-		return nil, err
-	}
-	log.Println("successful database connection")
+	ticker := time.NewTicker(1 * time.Second)
+	defer ticker.Stop()
+	timeout := time.After(cfg.Timeout)
 
-	return &Storage{conn: conn}, nil
+	for {
+		select {
+		case <-ticker.C:
+			conn, err = pgx.Connect(context.Background(), dbPath)
+			if err != nil {
+				continue
+			}
+			err = conn.Ping(context.Background())
+			if err != nil {
+				continue
+			}
+			log.Println("successful database connection")
+
+			return &Storage{conn: conn}, nil
+		case <-timeout:
+			return nil, fmt.Errorf("timed out waiting for database to become available")
+		}
+	}
 }
 
-func (s *Storage) Close(_ context.Context) error {
-	return nil
+func (s *Storage) Close(ctx context.Context) error {
+	return s.conn.Close(ctx)
 }

@@ -7,3 +7,4 @@ postgres:
   database: "postgres"
   user: "postgres"
   password: "postgres"
+  timeout: 60s

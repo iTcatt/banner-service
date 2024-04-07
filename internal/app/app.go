@@ -55,16 +55,13 @@ func Start() error {
 
 func initStorage(cfg config.PostgresConfig) (service.BannerStorage, error) {
 	log.Println("init postgres storage")
-	access := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s",
-		cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.Database)
-	return postgres.NewStorage(access)
+	return postgres.NewStorage(cfg)
 }
 
 func initHTTPServer(cfg config.HTTPConfig, handler *api.Handler) *http.Server {
 	log.Println("init http server")
-	router := api.InitRouter(handler)
 	return &http.Server{
 		Addr:    fmt.Sprintf("[::]:%s", cfg.Port),
-		Handler: router,
+		Handler: api.InitRouter(handler),
 	}
 }

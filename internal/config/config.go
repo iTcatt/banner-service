@@ -4,6 +4,7 @@ import (
 	"errors"
 	"log"
 	"os"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
@@ -18,11 +19,12 @@ type HTTPConfig struct {
 }
 
 type PostgresConfig struct {
-	Host     string `yaml:"host"`
-	Port     string `yaml:"port"`
-	User     string `yaml:"user"`
-	Password string `yaml:"password"`
-	Database string `yaml:"database"`
+	Host     string        `yaml:"host"`
+	Port     string        `yaml:"port"`
+	User     string        `yaml:"user"`
+	Password string        `yaml:"password"`
+	Database string        `yaml:"database"`
+	Timeout  time.Duration `yaml:"timeout"`
 }
 
 func Load() (Config, error) {
