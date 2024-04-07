@@ -26,7 +26,7 @@ func Start() error {
 	if err != nil {
 		return err
 	}
-	serv := service.NewBannerService(db)
+	serv := service.NewService(db)
 	handler := api.NewHandler(serv)
 
 	httpServer := initHTTPServer(cfg.Server, handler)

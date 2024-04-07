@@ -8,17 +8,17 @@ import (
 	"banner-service/internal/model"
 )
 
-type Service interface {
+type BannerService interface {
 	GetUserBannerAction(context.Context, model.GetUserBannerParams) (model.UserBanner, error)
 	GetBannerWithFiltersAction(context.Context, model.GetBannerWithFiltersParams) (model.UserBanner, error)
 }
 
 type Handler struct {
-	serv Service
+	service BannerService
 }
 
-func NewHandler(s Service) *Handler {
-	return &Handler{serv: s}
+func NewHandler(s BannerService) *Handler {
+	return &Handler{service: s}
 }
 
 func (h *Handler) getUserBanner(w http.ResponseWriter, r *http.Request) error {
@@ -27,7 +27,7 @@ func (h *Handler) getUserBanner(w http.ResponseWriter, r *http.Request) error {
 	useLastRevision := r.URL.Query().Get("use_last_revision")
 	log.Printf("tagID: %s; featureID: %s; useLastRevision: %s\n", tagID, featureID, useLastRevision)
 
-	result, err := h.serv.GetUserBannerAction(r.Context(), model.GetUserBannerParams{
+	result, err := h.service.GetUserBannerAction(r.Context(), model.GetUserBannerParams{
 		TagID:           tagID,
 		FeatureID:       featureID,
 		UseLastRevision: useLastRevision == "true",
@@ -44,7 +44,7 @@ func (h *Handler) getBannersWithFilter(w http.ResponseWriter, r *http.Request) e
 	limit := r.URL.Query().Get("limit")
 	offset := r.URL.Query().Get("offset")
 
-	result, err := h.serv.GetBannerWithFiltersAction(r.Context(), model.GetBannerWithFiltersParams{
+	result, err := h.service.GetBannerWithFiltersAction(r.Context(), model.GetBannerWithFiltersParams{
 		TagID:     tagID,
 		FeatureID: featureID,
 		Limit:     limit,
