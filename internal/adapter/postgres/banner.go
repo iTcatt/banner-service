@@ -1,13 +1,15 @@
 package postgres
 
 import (
-	"banner-service/internal/config"
 	"context"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/jackc/pgx/v5"
+
+	"banner-service/internal/config"
+	"banner-service/internal/model"
 )
 
 type Storage struct {
@@ -44,6 +46,35 @@ func NewStorage(cfg config.PostgresConfig) (*Storage, error) {
 			return nil, fmt.Errorf("timed out waiting for database to become available")
 		}
 	}
+}
+
+func (s *Storage) CreateBanner(context.Context, model.Banner) error {
+	return nil
+}
+
+func (s *Storage) CreateBannerTagsLocks(context.Context, int, []int) error {
+	return nil
+}
+
+func (s *Storage) GetUserBanner(context.Context, int, int) (string, error) {
+	return "", nil
+}
+
+func (s *Storage) GetFilteredBanners(context.Context, model.GetFilteredBannersParams) ([]model.Banner, error) {
+	return nil, nil
+}
+
+// TODO: понять как поменять содержимое баннера, при этом не затерев его дату создания и id
+func (s *Storage) PatchBanner(context.Context, model.Banner) error {
+	return nil
+}
+
+func (s *Storage) PatchBannerTagsLocks(context.Context, int, []int) error {
+	return nil
+}
+
+func (s *Storage) DeleteBanner(context.Context, int) error {
+	return nil
 }
 
 func (s *Storage) Close(ctx context.Context) error {

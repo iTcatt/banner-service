@@ -46,6 +46,7 @@ func Start() error {
 	if err := httpServer.Shutdown(context.Background()); err != nil {
 		return err
 	}
+	log.Println("shut down database")
 	if err := db.Close(context.Background()); err != nil {
 		return err
 	}
