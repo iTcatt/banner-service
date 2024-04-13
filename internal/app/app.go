@@ -54,9 +54,16 @@ func Start() error {
 	return nil
 }
 
-func initStorage(cfg config.PostgresConfig) (service.BannerStorage, error) {
+func initStorage(cfg config.PostgresConfig) (*postgres.Storage, error) {
 	log.Println("init postgres storage")
-	return postgres.NewStorage(cfg)
+	db, err := postgres.NewStorage(cfg)
+	if err != nil {
+		return nil, err
+	}
+	if err = db.Init(context.Background()); err != nil {
+		return nil, err
+	}
+	return db, nil
 }
 
 func initHTTPServer(cfg config.HTTPConfig, handler *api.Handler) *http.Server {

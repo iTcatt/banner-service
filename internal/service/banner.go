@@ -2,24 +2,31 @@ package service
 
 import (
 	"context"
+	"errors"
 	"log"
 	"math/rand/v2"
 	"time"
+
+	"github.com/jackc/pgx/v5"
 
 	"banner-service/internal/model"
 )
 
 type BannerStorage interface {
-	GetUserBanner(context.Context, int, int) (string, error)
-	GetFilteredBanners(context.Context, model.GetFilteredBannersParams) ([]model.Banner, error)
+	GetUserBanner(ctx context.Context, tagID int, featureID int) (model.Banner, error)
+	GetBannersByFeature(context.Context, int) ([]model.Banner, error)
+	GetBannersByTag(context.Context, int) ([]model.Banner, error)
+	GetTagsByBannerID(context.Context, int) ([]int, error)
+	GetAllBanners(context.Context) ([]model.Banner, error)
 
 	CreateBanner(context.Context, model.Banner) error
-	CreateBannerTagsLocks(context.Context, int, []int) error
+	CreateTag(context.Context, int) error
+	CreateBannerTagLock(context.Context, int, int) error
 
 	PatchBanner(context.Context, model.Banner) error
-	PatchBannerTagsLocks(context.Context, int, []int) error
 
 	DeleteBanner(context.Context, int) error
+	DeleteBannerTagsLocks(context.Context, int) error
 
 	Close(context.Context) error
 }
@@ -32,30 +39,94 @@ func NewService(repo BannerStorage) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) GetUserBannerAction(ctx context.Context, p model.GetUserBannerParams) (string, error) {
+// Сделать стуктуру, которая является map[pair(feature_id, tag_id)]model.Banner и время, на которое он был актуален
+// Далее я делаю time.Now() и вычисляю разницу и если она меньше 5 минут, то возращаю из map, если больше, иду в базу
+// и кэширую, должна быть такска на очищение неактуальных баннеров
+// можно сделать pkg/casher в котором будет хранится интерфейс
+func (s *Service) GetUserBannerAction(ctx context.Context, p model.GetUserBannerParams) (interface{}, error) {
 	log.Println("running GetUserBannerAction")
 
 	var (
-		content string
-		err     error
+		banner model.Banner
+		err    error
 	)
+
 	if p.UseLastRevision {
 		log.Println("using last revision")
-		content, err = s.repo.GetUserBanner(ctx, p.TagID, p.FeatureID)
+		banner, err = s.repo.GetUserBanner(ctx, p.TagID, p.FeatureID)
 		if err != nil {
 			return "", err
 		}
+		log.Println(banner)
 	}
-	return content, nil
+	return banner.Content, nil
 }
 
-func (s *Service) GetFilteredBannersAction(ctx context.Context, p model.GetFilteredBannersParams) ([]model.Banner, error) {
+func (s *Service) GetFilteredBannersAction(
+	ctx context.Context,
+	p model.GetFilteredBannersParams,
+) ([]model.BannerWithTags, error) {
 	log.Println("running GetFilteredBannersAction")
-	result, err := s.repo.GetFilteredBanners(ctx, p)
-	if err != nil {
-		return nil, err
+
+	var banners []model.BannerWithTags
+	if p.TagID != 0 && p.FeatureID != 0 {
+		result, err := s.repo.GetUserBanner(ctx, p.TagID, p.FeatureID)
+		if err != nil {
+			return nil, err
+		}
+		banners = append(banners, model.BannerWithTags{
+			Banner: result,
+			Tags:   []int{p.TagID},
+		})
+	} else if p.TagID != 0 {
+		result, err := s.repo.GetBannersByTag(ctx, p.TagID)
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range result {
+			banners = append(banners, model.BannerWithTags{
+				Banner: b,
+				Tags:   []int{p.TagID},
+			})
+		}
+	} else if p.FeatureID != 0 {
+		result, err := s.repo.GetBannersByFeature(ctx, p.FeatureID)
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range result {
+			tags, err := s.repo.GetTagsByBannerID(ctx, b.ID)
+			if err != nil {
+				return nil, err
+			}
+			banners = append(banners, model.BannerWithTags{
+				Banner: b,
+				Tags:   tags,
+			})
+		}
+	} else {
+		result, err := s.repo.GetAllBanners(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, b := range result {
+			tags, err := s.repo.GetTagsByBannerID(ctx, b.ID)
+			if err != nil {
+				return nil, err
+			}
+			banners = append(banners, model.BannerWithTags{
+				Banner: b,
+				Tags:   tags,
+			})
+		}
 	}
-	return result, nil
+	if len(banners) > p.Limit && p.Limit != -1 {
+		banners = banners[:p.Limit]
+	}
+	if len(banners) < p.Offset {
+		return []model.BannerWithTags{}, nil
+	}
+	return banners[p.Offset:], nil
 }
 
 func (s *Service) CreateBannerAction(ctx context.Context, p model.BannerParams) (int, error) {
@@ -68,14 +139,24 @@ func (s *Service) CreateBannerAction(ctx context.Context, p model.BannerParams) 
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	err := s.repo.CreateBanner(ctx, banner)
-	if err != nil {
+	for _, tag := range p.TagIDs {
+		if _, err := s.repo.GetUserBanner(ctx, tag, p.FeatureID); !errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrAlreadyExists
+		}
+	}
+
+	if err := s.repo.CreateBanner(ctx, banner); err != nil {
 		return 0, err
 	}
-	err = s.repo.CreateBannerTagsLocks(ctx, banner.ID, p.TagIDs)
-	if err != nil {
-		return 0, err
+	for _, tag := range p.TagIDs {
+		if err := s.repo.CreateTag(ctx, tag); err != nil {
+			return 0, err
+		}
+		if err := s.repo.CreateBannerTagLock(ctx, banner.ID, tag); err != nil {
+			return 0, err
+		}
 	}
+
 	return banner.ID, nil
 }
 
@@ -88,19 +169,29 @@ func (s *Service) PatchBannerAction(ctx context.Context, id int, p model.BannerP
 		IsActive:  p.IsActive,
 		UpdatedAt: time.Now(),
 	}
-	err := s.repo.PatchBanner(ctx, banner)
-	if err != nil {
+	if err := s.repo.PatchBanner(ctx, banner); err != nil {
 		return err
 	}
-	err = s.repo.PatchBannerTagsLocks(ctx, id, p.TagIDs)
-	if err != nil {
+	if err := s.repo.DeleteBannerTagsLocks(ctx, id); err != nil {
 		return err
+	}
+	for _, tag := range p.TagIDs {
+		if err := s.repo.CreateTag(ctx, tag); err != nil {
+			return err
+		}
+		if err := s.repo.CreateBannerTagLock(ctx, banner.ID, tag); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
 func (s *Service) DeleteBannerAction(ctx context.Context, id int) error {
 	log.Println("running DeleteBannerAction")
+	if err := s.repo.DeleteBannerTagsLocks(ctx, id); err != nil {
+		return err
+	}
+
 	if err := s.repo.DeleteBanner(ctx, id); err != nil {
 		return err
 	}
