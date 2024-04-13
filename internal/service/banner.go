@@ -41,7 +41,7 @@ func NewService(repo BannerStorage) *Service {
 
 // Сделать стуктуру, которая является map[pair(feature_id, tag_id)]model.Banner и время, на которое он был актуален
 // Далее я делаю time.Now() и вычисляю разницу и если она меньше 5 минут, то возращаю из map, если больше, иду в базу
-// и кэширую, должна быть такска на очищение неактуальных баннеров
+// и кэширую, должна быть таска на очищение неактуальных баннеров
 // можно сделать pkg/casher в котором будет хранится интерфейс
 func (s *Service) GetUserBannerAction(ctx context.Context, p model.GetUserBannerParams) (interface{}, error) {
 	log.Println("running GetUserBannerAction")
@@ -55,9 +55,11 @@ func (s *Service) GetUserBannerAction(ctx context.Context, p model.GetUserBanner
 		log.Println("using last revision")
 		banner, err = s.repo.GetUserBanner(ctx, p.TagID, p.FeatureID)
 		if err != nil {
-			return "", err
+			return nil, err
 		}
-		log.Println(banner)
+	}
+	if !banner.IsActive && !p.IsAdmin {
+		return nil, ErrNoPermission
 	}
 	return banner.Content, nil
 }

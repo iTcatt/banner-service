@@ -4,6 +4,7 @@ type GetUserBannerParams struct {
 	TagID           int
 	FeatureID       int
 	UseLastRevision bool
+	IsAdmin         bool
 }
 
 type GetFilteredBannersParams struct {

@@ -41,27 +41,26 @@ func registerHandler(handler func(w http.ResponseWriter, r *http.Request) error)
 		switch {
 		case err == nil:
 			return
-		case errors.Is(err, ErrValidationFailed):
-			sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
+		case errors.Is(err, ErrValidationFailed) || errors.Is(err, service.ErrAlreadyExists):
+			_ = sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
 		case errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows):
 			w.WriteHeader(http.StatusNotFound)
 		case errors.Is(err, service.ErrNoPermission):
 			w.WriteHeader(http.StatusForbidden)
-		case errors.Is(err, ErrValidationFailed):
-			sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
 		default:
-			sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusInternalServerError)
+			_ = sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusInternalServerError)
 		}
 	}
 }
 
-func sendJSONResponse(w http.ResponseWriter, response interface{}, status int) {
+func sendJSONResponse(w http.ResponseWriter, response interface{}, status int) error {
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(status)
 
 	log.Printf("sending response")
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
+		return err
 	}
+	return nil
 }

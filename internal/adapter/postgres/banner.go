@@ -130,7 +130,6 @@ func (s *Storage) GetUserBanner(ctx context.Context, tagID, featureID int) (mode
 	row := s.conn.QueryRow(ctx, q, tagID, featureID)
 	var b model.Banner
 	if err := row.Scan(&b.ID, &b.FeatureID, &b.Content, &b.IsActive, &b.CreatedAt, &b.UpdatedAt); err != nil {
-		fmt.Println(err)
 		return model.Banner{}, err
 	}
 
@@ -190,6 +189,7 @@ func (s *Storage) GetBannersByFeature(ctx context.Context, featureID int) ([]mod
 
 func (s *Storage) GetTagsByBannerID(ctx context.Context, bannerID int) ([]int, error) {
 	log.Println("[DEBUG] db: get tags by id")
+
 	q := `SELECT tag_id FROM tag t JOIN banner_tag bt USING (tag_id) WHERE bt.banner_id = $1`
 	rows, err := s.conn.Query(ctx, q, bannerID)
 	if err != nil {
@@ -229,6 +229,7 @@ func (s *Storage) GetAllBanners(ctx context.Context) ([]model.Banner, error) {
 
 func (s *Storage) PatchBanner(ctx context.Context, b model.Banner) error {
 	log.Println("[DEBUG] db: patch banner")
+
 	q := `
 		UPDATE banner
 		SET feature_id = $1,
@@ -271,5 +272,6 @@ func (s *Storage) DeleteBannerTagsLocks(ctx context.Context, id int) error {
 
 func (s *Storage) Close(ctx context.Context) error {
 	log.Println("[DEBUG] db: close connection")
+
 	return s.conn.Close(ctx)
 }
