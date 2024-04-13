@@ -1,6 +1,7 @@
 package http
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"log"
@@ -8,8 +9,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/jackc/pgx/v5"
 
-	"banner-service/internal/adapter"
+	"banner-service/internal/service"
 )
 
 var (
@@ -38,28 +40,28 @@ func registerHandler(handler func(w http.ResponseWriter, r *http.Request) error)
 
 		switch {
 		case err == nil:
-			w.WriteHeader(http.StatusOK)
-		case errors.Is(err, adapter.ErrNotFound):
-			w.WriteHeader(http.StatusNotFound)
+			return
 		case errors.Is(err, ErrValidationFailed):
-			w.WriteHeader(http.StatusBadRequest)
+			sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
+		case errors.Is(err, sql.ErrNoRows) || errors.Is(err, pgx.ErrNoRows):
+			w.WriteHeader(http.StatusNotFound)
+		case errors.Is(err, service.ErrNoPermission):
+			w.WriteHeader(http.StatusForbidden)
+		case errors.Is(err, ErrValidationFailed):
+			sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusBadRequest)
 		default:
-			resp := struct {
-				Error string `json:"error"`
-			}{err.Error()}
-			_ = sendJSONResponse(w, resp, http.StatusInternalServerError)
+			sendJSONResponse(w, map[string]string{"error": err.Error()}, http.StatusInternalServerError)
 		}
 	}
 }
 
-func sendJSONResponse(w http.ResponseWriter, result interface{}, status int) error {
+func sendJSONResponse(w http.ResponseWriter, response interface{}, status int) {
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(status)
 
 	log.Printf("sending response")
 
-	if err := json.NewEncoder(w).Encode(result); err != nil {
-		return err
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
 	}
-	return nil
 }
