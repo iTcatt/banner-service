@@ -227,6 +227,25 @@ func (s *Storage) GetAllBanners(ctx context.Context) ([]model.Banner, error) {
 	return banners, nil
 }
 
+func (s *Storage) GetAllTags(ctx context.Context) ([]int, error) {
+	log.Println("[DEBUG] db: get all tags")
+
+	rows, err := s.conn.Query(ctx, `SELECT tag_id FROM tag;`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	tags := make([]int, 0)
+	for rows.Next() {
+		var tag int
+		if err := rows.Scan(&tag); err != nil {
+			return nil, err
+		}
+		tags = append(tags, tag)
+	}
+	return tags, nil
+}
+
 func (s *Storage) PatchBanner(ctx context.Context, b model.Banner) error {
 	log.Println("[DEBUG] db: patch banner")
 

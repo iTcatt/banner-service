@@ -4,8 +4,7 @@ build:
 run:
 	go run ./...
 
-tests:
-	venom run tests/
+e2e:
 
 clean:
 	rm banner-service
@@ -13,4 +12,8 @@ clean:
 up:
 	docker compose up --build
 
-.PHONY: build run tests clean
+test:
+	go test ./...
+
+
+.PHONY: build run test clean e2e up

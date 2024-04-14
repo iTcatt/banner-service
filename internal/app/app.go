@@ -9,6 +9,8 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/joho/godotenv"
+
 	"banner-service/internal/adapter/postgres"
 	api "banner-service/internal/api/http"
 	"banner-service/internal/config"
@@ -22,6 +24,10 @@ func Start() error {
 	if err != nil {
 		return err
 	}
+	if err = godotenv.Load(); err != nil {
+		return err
+	}
+
 	db, err := initStorage(cfg.Database)
 	if err != nil {
 		return err

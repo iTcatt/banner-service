@@ -10,10 +10,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"banner-service/internal/api/auth"
 	"banner-service/internal/model"
 )
 
+const adminID = 0
+
 type BannerService interface {
+	AuthAction(ctx context.Context) (int, error)
 	GetUserBannerAction(context.Context, model.GetUserBannerParams) (interface{}, error)
 	GetFilteredBannersAction(context.Context, model.GetFilteredBannersParams) ([]model.BannerWithTags, error)
 
@@ -32,18 +36,42 @@ func NewHandler(s BannerService) *Handler {
 	return &Handler{service: s}
 }
 
+func (h *Handler) getUserToken(w http.ResponseWriter, r *http.Request) error {
+	tagID, err := h.service.AuthAction(r.Context())
+	if err != nil {
+		return err
+	}
+	token, err := auth.GenerateToken(tagID, false)
+	if err != nil {
+		return err
+	}
+	return sendJSONResponse(w, map[string]string{"token": token}, http.StatusOK)
+}
+
+func (h *Handler) getAdminToken(w http.ResponseWriter, r *http.Request) error {
+	token, err := auth.GenerateToken(adminID, true)
+	if err != nil {
+		return err
+	}
+	return sendJSONResponse(w, map[string]string{"token": token}, http.StatusOK)
+}
+
 func (h *Handler) getUserBanner(w http.ResponseWriter, r *http.Request) error {
 	var (
 		params model.GetUserBannerParams
 		err    error
 	)
-	// TODO: проверка токенов авторизация и т.д.
-	params.IsAdmin = true
+	claims, err := authMiddleware(w, r)
+	if err != nil {
+		return err
+	}
+	params.IsAdmin = claims.IsAdmin
 
 	tagID := r.URL.Query().Get("tag_id")
 	if tagID == "" {
 		return fmt.Errorf("%w: tag_id is required", ErrValidationFailed)
 	}
+
 	if params.TagID, err = strconv.Atoi(tagID); err != nil {
 		return fmt.Errorf("%w: %s", ErrValidationFailed, err)
 	}
@@ -57,19 +85,28 @@ func (h *Handler) getUserBanner(w http.ResponseWriter, r *http.Request) error {
 	}
 
 	useLastRevision := r.URL.Query().Get("use_last_revision")
-	if useLastRevision == "true" {
+	switch useLastRevision {
+	case "true":
 		params.UseLastRevision = true
-	} else if useLastRevision == "false" {
+	case "false":
 		params.UseLastRevision = false
-	} else {
+	case "":
+		params.UseLastRevision = false
+	default:
 		return fmt.Errorf("%w: use_last_revision is bool", ErrValidationFailed)
 	}
 
 	log.Printf("tagID: %s; featureID: %s; useLastRevision: %s\n", tagID, featureID, useLastRevision)
 
+	if params.TagID != claims.TagID && !params.IsAdmin {
+		return ErrNoPermission
+	}
 	result, err := h.service.GetUserBannerAction(r.Context(), params)
 	if err != nil {
 		return err
+	}
+	if result == nil {
+		return ErrNoPermission
 	}
 	return sendJSONResponse(w, result, http.StatusOK)
 }
@@ -79,6 +116,13 @@ func (h *Handler) getFilteredBanners(w http.ResponseWriter, r *http.Request) err
 		params model.GetFilteredBannersParams
 		err    error
 	)
+	claims, err := authMiddleware(w, r)
+	if err != nil {
+		return err
+	}
+	if !claims.IsAdmin {
+		return ErrNoPermission
+	}
 
 	tagID := r.URL.Query().Get("tag_id")
 	if tagID != "" {
@@ -119,6 +163,14 @@ func (h *Handler) getFilteredBanners(w http.ResponseWriter, r *http.Request) err
 }
 
 func (h *Handler) createBanner(w http.ResponseWriter, r *http.Request) error {
+	claims, err := authMiddleware(w, r)
+	if err != nil {
+		return err
+	}
+	if !claims.IsAdmin {
+		return ErrNoPermission
+	}
+
 	var params model.BannerParams
 	if err := json.NewDecoder(r.Body).Decode(&params); err != nil {
 		return fmt.Errorf("%w: %s", ErrValidationFailed, err)
@@ -129,10 +181,18 @@ func (h *Handler) createBanner(w http.ResponseWriter, r *http.Request) error {
 		return err
 	}
 
-	return sendJSONResponse(w, id, http.StatusCreated)
+	return sendJSONResponse(w, map[string]int{"banner_id": id}, http.StatusCreated)
 }
 
-func (h *Handler) patchBanner(_ http.ResponseWriter, r *http.Request) error {
+func (h *Handler) patchBanner(w http.ResponseWriter, r *http.Request) error {
+	claims, err := authMiddleware(w, r)
+	if err != nil {
+		return err
+	}
+	if !claims.IsAdmin {
+		return ErrNoPermission
+	}
+
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrValidationFailed, err)
@@ -150,6 +210,14 @@ func (h *Handler) patchBanner(_ http.ResponseWriter, r *http.Request) error {
 }
 
 func (h *Handler) deleteBanner(w http.ResponseWriter, r *http.Request) error {
+	claims, err := authMiddleware(w, r)
+	if err != nil {
+		return err
+	}
+	if !claims.IsAdmin {
+		return ErrNoPermission
+	}
+
 	id, err := strconv.Atoi(chi.URLParam(r, "id"))
 	if err != nil {
 		return fmt.Errorf("%w: %v", ErrValidationFailed, err)

@@ -18,6 +18,7 @@ type BannerStorage interface {
 	GetBannersByTag(context.Context, int) ([]model.Banner, error)
 	GetTagsByBannerID(context.Context, int) ([]int, error)
 	GetAllBanners(context.Context) ([]model.Banner, error)
+	GetAllTags(context.Context) ([]int, error)
 
 	CreateBanner(context.Context, model.Banner) error
 	CreateTag(context.Context, int) error
@@ -51,15 +52,14 @@ func (s *Service) GetUserBannerAction(ctx context.Context, p model.GetUserBanner
 		err    error
 	)
 
-	if p.UseLastRevision {
-		log.Println("using last revision")
-		banner, err = s.repo.GetUserBanner(ctx, p.TagID, p.FeatureID)
-		if err != nil {
-			return nil, err
-		}
+	log.Println("using last revision")
+	banner, err = s.repo.GetUserBanner(ctx, p.TagID, p.FeatureID)
+	if err != nil {
+		return nil, err
 	}
+
 	if !banner.IsActive && !p.IsAdmin {
-		return nil, ErrNoPermission
+		return nil, nil
 	}
 	return banner.Content, nil
 }
@@ -198,4 +198,17 @@ func (s *Service) DeleteBannerAction(ctx context.Context, id int) error {
 		return err
 	}
 	return nil
+}
+
+func (s *Service) AuthAction(ctx context.Context) (int, error) {
+	log.Println("running AuthAction")
+
+	result, err := s.repo.GetAllTags(ctx)
+	if err != nil {
+		return 0, err
+	}
+	if len(result) == 0 {
+		return rand.Int(), nil
+	}
+	return result[rand.IntN(len(result))], nil
 }
