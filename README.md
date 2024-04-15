@@ -15,4 +15,6 @@ make up
 TBD
 
 ### Интеграционные тесты
-TBD
+```bash
+make e2e
+```
