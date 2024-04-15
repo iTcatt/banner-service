@@ -5,6 +5,7 @@ run:
 	go run ./...
 
 e2e:
+	go test ./tests
 
 clean:
 	rm banner-service
