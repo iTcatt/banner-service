@@ -3,6 +3,54 @@ info:
   title: Сервис баннеров
   version: 1.0.0
 paths:
+  /get_token:
+    get:
+      summary: Получение пользовательского токена
+      responses:
+        '200':
+          description: Токен успешно выписан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Токен пользователя
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
+  /admin:
+    get:
+      summary: Получение админского токена
+      responses:
+        '200':
+          description: Токен успешно выписан
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    description: Токен админа
+        '500':
+          description: Внутренняя ошибка сервера
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+
   /user_banner:
     get:
       summary: Получение баннера для пользователя
